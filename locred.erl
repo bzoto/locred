@@ -15,6 +15,8 @@
          ,add_borders/2
          ,check_system/1
          ,automaton_states/1
+         ,transitions/1
+         ,show_automaton/1
         ]).
 
 -export([format_factors/1]).
@@ -116,9 +118,38 @@ automaton_states(System) ->
                                                  sets:union(sets:from_list(R2),B1)
                                          end, B, Factors)
                        end, sets:new(), Factors),
-    io:format("Automaton:"),
+    io:format("States:"),
     format_factors(States),
     States.
+
+is_transition(State1, State2) ->
+    tl(State1) =:= lists:droplast(State2).
+
+transitions(States) ->
+    Trans = sets:fold(fun(X,B) ->
+                              sets:fold(fun(Y,B1) ->
+                                                case is_transition(X,Y) of
+                                                    true  -> O = sets:add_element({X,Y}, B1);
+                                                    false -> O = B1
+                                                end,
+                                                O
+                                        end, B, States)
+                      end, sets:new(), States),
+    Trans.
+
+show_automaton(Transitions) ->
+    {ok, F} = file:open("automa.dot", write),
+    io:fwrite(F,"digraph finite_state_machine {~n",[]),
+    io:fwrite(F,"rankdir = LR~n",[]),
+    io:fwrite(F,"node [shape = circle]~n",[]),
+    sets:fold(fun(X,B) -> 
+                      {From, To} = X,
+                      io:fwrite(F,"  ~p -> ~p~n", [From, To])
+              end, [], Transitions),
+   io:fwrite(F,"}~n",[]),
+   file:close(F),
+   os:cmd("dot automa.dot -Tpdf > automa.pdf").
+
 
 
 
@@ -176,5 +207,8 @@ main(_V) ->
     format_factors(Anbn),
     San = {system, Anbn, 3},
     check_system(San),
-    automaton_states(San).
+    States = automaton_states(San),
+    Trans = transitions(States),
+    show_automaton(Trans).
+
 
