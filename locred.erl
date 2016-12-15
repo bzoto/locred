@@ -100,7 +100,7 @@ check_system(System) ->
 
 % Look-back/Look-ahead automaton construction
 automaton_states(System) ->
-    {system, Factors, _Size} = System,
+    {system, Factors, Size} = System,
     States = sets:fold(fun(X,B) ->
                                sets:fold(fun(Y,B1) ->
                                                  % this is to avoid spurious beginnings
@@ -118,37 +118,45 @@ automaton_states(System) ->
                                                  sets:union(sets:from_list(R2),B1)
                                          end, B, Factors)
                        end, sets:new(), Factors),
-    io:format("States:"),
-    format_factors(States),
-    States.
+    %% This manages "ad hoc" starting and ending states
+    Start = sets:filter(fun(X) -> hd(X) =:= hd("#") end, States),
+    Start1 = sets:fold(fun(X,B) -> 
+                               sets:add_element(string:concat(".",string:substr(X,1,Size)),B)
+                       end, sets:new(), Start),
+    End = sets:filter(fun(X) -> lists:last(X) =:= hd("#") end, States),
+    End1 = sets:fold(fun(X,B) -> 
+                             sets:add_element(string:concat(tl(X),"."),B)
+                     end, sets:new(), End),
+    sets:union(States,sets:union(Start1,End1)).
+
 
 is_transition(State1, State2) ->
     tl(State1) =:= lists:droplast(State2).
 
 transitions(States) ->
-    Trans = sets:fold(fun(X,B) ->
-                              sets:fold(fun(Y,B1) ->
-                                                case is_transition(X,Y) of
-                                                    true  -> O = sets:add_element({X,Y}, B1);
-                                                    false -> O = B1
-                                                end,
-                                                O
-                                        end, B, States)
-                      end, sets:new(), States),
-    Trans.
+    sets:fold(fun(X,B) ->
+                      sets:fold(fun(Y,B1) ->
+                                        case is_transition(X,Y) of
+                                            true  -> O = sets:add_element({X,Y}, B1);
+                                            false -> O = B1
+                                        end,
+                                        O
+                                end, B, States)
+              end, sets:new(), States).
 
 show_automaton(Transitions) ->
     {ok, F} = file:open("automa.dot", write),
     io:fwrite(F,"digraph finite_state_machine {~n",[]),
     io:fwrite(F,"rankdir = LR~n",[]),
-    io:fwrite(F,"node [shape = circle]~n",[]),
     sets:fold(fun(X,B) -> 
                       {From, To} = X,
-                      io:fwrite(F,"  ~p -> ~p~n", [From, To])
+                      L = string:len(From) div 2,
+                      Lab = string:substr(From,L+1,1),
+                      io:fwrite(F,"  ~p -> ~p  [ label = ~p] ~n", [From, To, Lab])
               end, [], Transitions),
    io:fwrite(F,"}~n",[]),
    file:close(F),
-   os:cmd("dot automa.dot -Tpdf > automa.pdf").
+   os:cmd("dot automa.dot -Tpdf > automa.pdf"). %% uses Graphviz
 
 
 
@@ -171,11 +179,11 @@ reduction(String, System) ->
             {stop, String}
     end.
 
-reduction_star(String, System) ->
+reduction_star_h(String, System) ->
     case reduction(String, System) of
         {ok, NewString} ->
             io:format("Step: ~s ~n", [NewString]),
-            reduction_star(NewString, System);
+            reduction_star_h(NewString, System);
         {stop, V} ->
             io:format("---> Stop at ~s <---~n", [V]), V;
         {no, V} ->
@@ -183,6 +191,14 @@ reduction_star(String, System) ->
             {no, String, V}
     end.
 
+% Entry point for reduction*: add borders and checks if the staring factors are ok
+reduction_star(String, System) ->
+    {system, _, Size} = System,
+    Str = add_borders(String, Size),
+    case check_factors(Str, System) of
+        true  -> reduction_star_h(Str, System);
+        false -> io:format("reduction: bad factors~n"), {no, Str}
+    end.
 
 % used as a script:
 % escript locred.erl
@@ -196,10 +212,11 @@ main(_V) ->
     S6 = sets:union(S5, bordered_factors_of("*.-.e",5)),
     Sys = {system, S6, 5},
     check_system(Sys),
+
     format_factors(S6),
-    reduction_star(add_borders("e]-.e]-.-.e]-.e",5), Sys),
+    reduction_star("e]-.e]-.-.e]-.e", Sys),
     io:format("~n"),
-    reduction_star(add_borders("e]*.e]*.-.e]*.e",5), Sys),
+    reduction_star("e]*.e]*.-.e]*.e", Sys),
     
     %%% Automaton
     
@@ -210,5 +227,6 @@ main(_V) ->
     States = automaton_states(San),
     Trans = transitions(States),
     show_automaton(Trans).
+    %show_automaton(transitions(automaton_states(Sys))).
 
 
