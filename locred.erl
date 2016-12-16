@@ -21,7 +21,6 @@
 
 -export([format_factors/1]).
 
--export([main/1]).
 
 %% Basic Utils
 
@@ -54,7 +53,11 @@ format_factors(Set) ->
 % factors_of returns all the factors of size Size of String,
 % which must contain precedences
 factors_of(String, Size) -> factors_help(String, 1, Size, sets:new()).
-bordered_factors_of(String, Size) -> factors_of(add_borders(String, Size), Size).
+bordered_factors_of(String, Size) -> 
+    case Size rem 2 of
+        1 -> factors_of(add_borders(String, Size), Size);
+        0 -> error("factors: size must be odd")
+    end.
 
 factors_help(String, From, Size, Set) ->
     C = string:substr(String, From, Size),
@@ -90,7 +93,7 @@ check_system(System) ->
     io:format("Conflicts: ~p~n", [Confl]),
     Confl.
 
-%%% simple, less efficient variant based on lists
+%%% simpler, less efficient variant based on lists
 %check_system(System) ->
 %    {system, Factors, _} = System,
 %    L = sets:to_list(Factors),
@@ -121,7 +124,7 @@ automaton_states(System) ->
     %% This manages "ad hoc" starting and ending states
     Start = sets:filter(fun(X) -> hd(X) =:= hd("#") end, States),
     Start1 = sets:fold(fun(X,B) -> 
-                               sets:add_element(string:concat(".",string:substr(X,1,Size)),B)
+                               sets:add_element(string:concat(".",string:substr(X,1,2*Size-3)),B)
                        end, sets:new(), Start),
     End = sets:filter(fun(X) -> lists:last(X) =:= hd("#") end, States),
     End1 = sets:fold(fun(X,B) -> 
@@ -145,14 +148,15 @@ transitions(States) ->
               end, sets:new(), States).
 
 show_automaton(Transitions) ->
+    io:format("Writing the automaton...~n"),
     {ok, F} = file:open("automa.dot", write),
     io:fwrite(F,"digraph finite_state_machine {~n",[]),
     io:fwrite(F,"rankdir = LR~n",[]),
-    sets:fold(fun(X,B) -> 
+    sets:fold(fun(X,_) -> 
                       {From, To} = X,
                       L = string:len(From) div 2,
                       Lab = string:substr(From,L+1,1),
-                      io:fwrite(F,"  ~p -> ~p  [ label = ~p] ~n", [From, To, Lab])
+                      io:fwrite(F,"  ~p -> ~p  [label = ~p] ~n", [From, To, Lab])
               end, [], Transitions),
    io:fwrite(F,"}~n",[]),
    file:close(F),
@@ -200,33 +204,6 @@ reduction_star(String, System) ->
         false -> io:format("reduction: bad factors~n"), {no, Str}
     end.
 
-% used as a script:
-% escript locred.erl
-main(_V) ->
-    S0 = bordered_factors_of("e]-.-.e[*.e[*.-.e",5),
-    S1 = sets:union(S0, bordered_factors_of("e]-.e[*.-.e",5)),
-    S2 = sets:union(S1, bordered_factors_of("e]-.e]-.e",5)),
-    S3 = sets:union(S2, bordered_factors_of("-.-.e",5)),
-    S4 = sets:union(S3, bordered_factors_of("-.e",5)),
-    S5 = sets:union(S4, bordered_factors_of("*.e",5)),
-    S6 = sets:union(S5, bordered_factors_of("*.-.e",5)),
-    Sys = {system, S6, 5},
-    check_system(Sys),
 
-    format_factors(S6),
-    reduction_star("e]-.e]-.-.e]-.e", Sys),
-    io:format("~n"),
-    reduction_star("e]*.e]*.-.e]*.e", Sys),
-    
-    %%% Automaton
-    
-    Anbn = bordered_factors_of("a[a.b]b",3),
-    format_factors(Anbn),
-    San = {system, Anbn, 3},
-    check_system(San),
-    States = automaton_states(San),
-    Trans = transitions(States),
-    show_automaton(Trans).
-    %show_automaton(transitions(automaton_states(Sys))).
 
 
