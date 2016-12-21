@@ -75,9 +75,12 @@ check_factors(String, System) ->
     sets:is_subset(SFact, Factors).
 
 % Check if a System is conflictual
+
+sigma(String) ->
+    lists:filter(fun(X) -> not(lists:member(X, "[.]")) end, String).
+
 conflictual(Str1, Str2) ->
-    F = fun(X) -> not(lists:member(X, "[.]")) end,
-    Str1 =/= Str2 andalso lists:filter(F,Str1) =:= lists:filter(F, Str2).
+    Str1 =/= Str2 andalso sigma(Str1) =:= sigma(Str2).
 
 check_system(System) ->
     {system, Factors, _} = System,
@@ -156,12 +159,50 @@ show_automaton(Transitions) ->
                       {From, To} = X,
                       L = string:len(From) div 2,
                       Lab = string:substr(From,L+1,1),
-                      io:fwrite(F,"  ~p -> ~p  [label = ~p] ~n", [From, To, Lab])
+                      F1 = string:substr(From,1,L),
+                      F2 = string:substr(From,L+1,2*L),
+                      T1 = string:substr(To,1,L),
+                      T2 = string:substr(To,L+1,2*L),
+                      io:fwrite(F,"  \"~s, ~s\" -> \"~s, ~s\"  [label = ~p] ~n", [F1,F2,T1,T2, Lab])
               end, [], Transitions),
    io:fwrite(F,"}~n",[]),
    file:close(F),
    os:cmd("dot automa.dot -Tpdf > automa.pdf"). %% uses Graphviz
 
+
+% get precedences for a subword
+factor_precs(Factor, Sys) ->
+    {system, W, _Size} = Sys,
+    Res = sets:fold(fun(X,Y) ->
+                      case sigma(X) =:= Factor of
+                          true -> X;
+                          false -> Y 
+                      end
+              end,
+              none,
+              W),
+    if 
+        Res =:= none -> error({bad_factor, Factor});
+        true -> Res
+    end.
+
+insert_precs_h(String, Sys, Sz, From, List) ->
+    C = string:substr(String, From, Sz),
+    if
+        length(C) < Sz -> List;
+        true -> insert_precs_h(String, Sys, Sz, From+1, 
+                               lists:append(List, [factor_precs(C, Sys)]))
+    end.
+
+% insert precedences in a string, using Sys
+insert_precs(String, Sys) ->
+    {system, _, Size} = Sys,
+    Sz = Size div 2 + 1,
+    Fc = insert_precs_h(String, Sys, Sz, 1, []),
+    Str1 = lists:foldl(fun(X,Y) ->
+                               string:concat(Y,string:substr(X,1,2))
+                       end, "", Fc),
+    string:concat(string:substr(Str1,1,string:len(Str1)-2), lists:last(Fc)).
 
 
 
@@ -189,7 +230,7 @@ reduction_star_h(String, System) ->
             io:format("Step: ~s ~n", [NewString]),
             reduction_star_h(NewString, System);
         {stop, V} ->
-            io:format("---> Stop at ~s <---~n", [V]), V;
+            io:format("----> Stop ~n"), V;
         {no, V} ->
             io:format("Problem with ~s ~nHypotheses:~n ~s ~n ~s ~n ~s ~n", [String|V]),
             {no, String, V}
@@ -198,9 +239,11 @@ reduction_star_h(String, System) ->
 % Entry point for reduction*: add borders and checks if the staring factors are ok
 reduction_star(String, System) ->
     {system, _, Size} = System,
-    Str = add_borders(String, Size),
+    Str = add_borders(insert_precs(String, System), Size),
     case check_factors(Str, System) of
-        true  -> reduction_star_h(Str, System);
+        true  -> 
+            io:format("----> ~s ~n", [Str]),
+            reduction_star_h(Str, System);
         false -> io:format("reduction: bad factors~n"), {no, Str}
     end.
 
