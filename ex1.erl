@@ -1,4 +1,8 @@
--module(ex).
+% Strictly Locally Reducible Languages 
+% basic examples
+% MPradella, MMXVI
+
+-module(ex1).
 
 -import(locred,
         [ bordered_factors_of/2
@@ -12,27 +16,6 @@
 
 %%%% Examples
 
-unary_minus() ->
-    S0 = bordered_factors_of("e]-.-.e[*.e[*.-.e",7),
-    S1 = sets:union(S0, bordered_factors_of("e]-.e[*.-.e",7)),
-    S2 = sets:union(S1, bordered_factors_of("e]-.e]-.e",7)),
-    S3 = sets:union(S2, bordered_factors_of("-.-.e",7)),
-    S4 = sets:union(S3, bordered_factors_of("-.e",7)),
-    S5 = sets:union(S4, bordered_factors_of("*.e",7)),
-    S6 = sets:union(S5, bordered_factors_of("*.-.e",7)),
-    S7 = sets:union(S6, bordered_factors_of("-.-.e[*.e",7)),
-
-    Sys = {system, S7, 7},
-    check_system(Sys),
-
-    format_factors(S6),
-    reduction_star("e--e*e*-e", Sys),
-
-    reduction_star("e-e--e-e", Sys),
-    io:format("~n"),
-    reduction_star("e*e*-e*e", Sys),
-    show_automaton(transitions(automaton_states(Sys))).
-
 anbn() ->
     %%% Automaton example (a^n b^n)
     
@@ -40,6 +23,7 @@ anbn() ->
     format_factors(Anbn),
     San = {system, Anbn, 3},
     check_system(San),
+    reduction_star("aaaabbbb", San),
     show_automaton(transitions(automaton_states(San))).
 
 
@@ -114,11 +98,21 @@ l5() ->
     show_automaton(transitions(automaton_states(Sys))).
 
 
+hierarchy() ->
+    P1 = bordered_factors_of("a.a.a.b]a.a.a.b",5),
+    P2 = sets:union(P1, bordered_factors_of("a.a.a.b",5)),
+    Sys = {system, P2, 5},
+    check_system(Sys),
+    format_factors(P2),
+    reduction_star("aaabaaabaaab", Sys),
+    reduction_star("aaabaaaaaaabaaab", Sys), % this should fail for k > 5
+    show_automaton(transitions(automaton_states(Sys))).
+
 
 % used as a script:
 % escript locred.erl
 main(_V) -> 
-    notOP().
+    hierarchy().
 
 
 

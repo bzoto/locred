@@ -17,12 +17,15 @@
          ,automaton_states/1
          ,transitions/1
          ,show_automaton/1
+         ,sigma/1
         ]).
 
 -export([format_factors/1]).
 
 
 %% Basic Utils
+
+-spec check_string(string()) -> boolean().
 
 %% this is used to check if a string contains the correct precedences
 check_string(String) ->
@@ -33,13 +36,15 @@ check_string_help(Char,  {true, even}) -> {not(lists:member(Char, "[.]")), odd};
 check_string_help(Char,  {true, odd})  -> {lists:member(Char, "[.]"), even};
 check_string_help(_Char, {false, _V})  -> {false, _V}.
 
+-spec borders(integer()) -> string().
 
 borders(1) -> "#";
-borders(Size) -> lists:append("#.",borders(Size-2)).
+borders(Size) -> "#." ++ borders(Size-2).
 
-add_borders(String, Size) -> lists:append([borders(Size),
-                                           "[", String, "]",
-                                           borders(Size)]).
+-spec add_borders(string(), integer()) -> string().
+
+add_borders(String, Size) -> borders(Size) ++ "[" ++ String ++ "]" ++ borders(Size).
+
 format_factors(Set) ->
     io:format("{~n"),
     sets:fold(fun(X,_) ->
@@ -52,6 +57,9 @@ format_factors(Set) ->
 
 % factors_of returns all the factors of size Size of String,
 % which must contain precedences
+
+-spec factors_of(string(), integer()) -> sets:set().
+
 factors_of(String, Size) -> factors_help(String, 1, Size, sets:new()).
 bordered_factors_of(String, Size) -> 
     case Size rem 2 of
@@ -69,70 +77,80 @@ factors_help(String, From, Size, Set) ->
 
 
 % A System has form {system, Set, Size}
+
+-spec check_factors(string(), tuple()) -> boolean(). 
+
 check_factors(String, System) ->
     {system, Factors, Size} = System,
     SFact = factors_of(String, Size),
     sets:is_subset(SFact, Factors).
 
-% Check if a System is conflictual
+
+-spec sigma(string()) -> string(). 
 
 sigma(String) ->
     lists:filter(fun(X) -> not(lists:member(X, "[.]")) end, String).
 
+% Check if a System is conflictual
+
 conflictual(Str1, Str2) ->
     Str1 =/= Str2 andalso sigma(Str1) =:= sigma(Str2).
 
+-spec check_system(tuple()) -> boolean().
+
 check_system(System) ->
     {system, Factors, _} = System,
-    Confl = sets:fold(fun(X,B) ->
-                              sets:fold(fun(Y,B1) ->
-                                                case conflictual(X,Y) of
-                                                    true  -> [{conflict, X, Y} | B1];
-                                                    false -> B1
-                                                end
-                                        end, B, Factors)
-                      end, [], Factors),
+    Confl = sets:fold(
+              fun(X,B) ->
+                      sets:fold(
+                        fun(Y,B1) ->
+                                case conflictual(X,Y) of
+                                    true  -> [{conflict, X, Y} | B1];
+                                    false -> B1
+                                end
+                        end, B, Factors)
+              end, [], Factors),
     %% Note: Factors will contain both {conflict, A, B} and {conflict, B, A}
     io:format("Conflicts: ~p~n", [Confl]),
     Confl.
 
-%%% simpler, less efficient variant based on lists
-%check_system(System) ->
-%    {system, Factors, _} = System,
-%    L = sets:to_list(Factors),
-%    Confl = [ {conflict, E1, E2} || E1 <- L, E2 <- L, conflictual(E1, E2) ],
-%    io:format("Conflicts: ~p~n", [Confl]),
-%    Confl.
 
 % Look-back/Look-ahead automaton construction
+
+-spec automaton_states(tuple()) -> sets:set().
+
 automaton_states(System) ->
     {system, Factors, Size} = System,
-    States = sets:fold(fun(X,B) ->
-                               sets:fold(fun(Y,B1) ->
-                                                 % this is to avoid spurious beginnings
-                                                 Flag = hd(Y) =/= hd("#") andalso lists:last(X) =/= hd("#"), 
-                                                 V = lists:append(X,tl(Y)),
-                                                 case check_factors(V, System) andalso Flag of
-                                                     true ->  R1 = [tl(V)];
-                                                     false -> R1 = []
-                                                 end,
-                                                 V1 = lists:append(lists:droplast(X),Y),
-                                                 case check_factors(V1, System) andalso Flag of
-                                                     true ->  R2 = [lists:droplast(V1) | R1];
-                                                     false -> R2 = R1
-                                                 end,
-                                                 sets:union(sets:from_list(R2),B1)
-                                         end, B, Factors)
-                       end, sets:new(), Factors),
+    States = sets:fold(
+               fun(X,B) ->
+                       sets:fold(
+                         fun(Y,B1) ->
+                                 % this is to avoid spurious beginnings
+                                 Flag = hd(Y) =/= hd("#") andalso lists:last(X) =/= hd("#"), 
+                                 V = X ++ tl(Y),
+                                 case check_factors(V, System) andalso Flag of
+                                     true ->  R1 = [tl(V)];
+                                     false -> R1 = []
+                                 end,
+                                 V1 = lists:droplast(X) ++ Y,
+                                 case check_factors(V1, System) andalso Flag of
+                                     true ->  R2 = [lists:droplast(V1) | R1];
+                                     false -> R2 = R1
+                                 end,
+                                 sets:union(sets:from_list(R2),B1)
+                         end, B, Factors)
+               end, sets:new(), Factors),
     %% This manages "ad hoc" starting and ending states
     Start = sets:filter(fun(X) -> hd(X) =:= hd("#") end, States),
-    Start1 = sets:fold(fun(X,B) -> 
-                               sets:add_element(string:concat(".",string:substr(X,1,2*Size-3)),B)
-                       end, sets:new(), Start),
+    Start1 = sets:fold(
+               fun(X,B) -> 
+                       sets:add_element("." ++ string:substr(X,1,2*Size-3),B)
+               end, sets:new(), Start),
     End = sets:filter(fun(X) -> lists:last(X) =:= hd("#") end, States),
-    End1 = sets:fold(fun(X,B) -> 
-                             sets:add_element(string:concat(tl(X),"."),B)
-                     end, sets:new(), End),
+    End1 = sets:fold(
+             fun(X,B) -> 
+                     sets:add_element(tl(X) ++ ".",B)
+             end, sets:new(), End),
     sets:union(States,sets:union(Start1,End1)).
 
 
@@ -140,15 +158,17 @@ is_transition(State1, State2) ->
     tl(State1) =:= lists:droplast(State2).
 
 transitions(States) ->
-    sets:fold(fun(X,B) ->
-                      sets:fold(fun(Y,B1) ->
-                                        case is_transition(X,Y) of
-                                            true  -> O = sets:add_element({X,Y}, B1);
-                                            false -> O = B1
-                                        end,
-                                        O
-                                end, B, States)
-              end, sets:new(), States).
+    sets:fold(
+      fun(X,B) ->
+              sets:fold(
+                fun(Y,B1) ->
+                        case is_transition(X,Y) of
+                            true  -> O = sets:add_element({X,Y}, B1);
+                            false -> O = B1
+                        end,
+                        O
+                end, B, States)
+      end, sets:new(), States).
 
 show_automaton(Transitions) ->
     io:format("Writing the automaton...~n"),
@@ -163,7 +183,8 @@ show_automaton(Transitions) ->
                       F2 = string:substr(From,L+1,2*L),
                       T1 = string:substr(To,1,L),
                       T2 = string:substr(To,L+1,2*L),
-                      io:fwrite(F,"  \"~s, ~s\" -> \"~s, ~s\"  [label = ~p] ~n", [F1,F2,T1,T2, Lab])
+                      io:fwrite(F,"  \"~s, ~s\" -> \"~s, ~s\"  [label = ~p] ~n", 
+                                [F1,F2,T1,T2, Lab])
               end, [], Transitions),
    io:fwrite(F,"}~n",[]),
    file:close(F),
@@ -191,7 +212,7 @@ insert_precs_h(String, Sys, Sz, From, List) ->
     if
         length(C) < Sz -> List;
         true -> insert_precs_h(String, Sys, Sz, From+1, 
-                               lists:append(List, [factor_precs(C, Sys)]))
+                               List ++ [factor_precs(C, Sys)])
     end.
 
 % insert precedences in a string, using Sys
@@ -200,9 +221,9 @@ insert_precs(String, Sys) ->
     Sz = Size div 2 + 1,
     Fc = insert_precs_h(String, Sys, Sz, 1, []),
     Str1 = lists:foldl(fun(X,Y) ->
-                               string:concat(Y,string:substr(X,1,2))
+                               Y ++ string:substr(X,1,2)
                        end, "", Fc),
-    string:concat(string:substr(Str1,1,string:len(Str1)-2), lists:last(Fc)).
+    string:substr(Str1,1,string:len(Str1)-2) ++ lists:last(Fc).
 
 
 
@@ -211,9 +232,9 @@ reduction(String, System) ->
     {ok, Handle} = re:compile("\\[[^\\[\\]]+\\]"),
     case re:split(String, Handle, [{parts, 2},{return, list}]) of
         [L,R] ->
-            HP = [lists:append([L,"[",R]),
-                  lists:append([L,".",R]),
-                  lists:append([L,"]",R])],
+            HP = [L ++ "[" ++ R,
+                  L ++ "." ++ R,
+                  L ++ "]" ++ R],
             case lists:map(fun(X) -> check_factors(X, System) end, HP) of
                 [true, false, false] -> [V, _, _] = HP, {ok, V};
                 [false, true, false] -> [_, V, _] = HP, {ok, V};
@@ -236,7 +257,10 @@ reduction_star_h(String, System) ->
             {no, String, V}
     end.
 
-% Entry point for reduction*: add borders and checks if the staring factors are ok
+% Entry point for reduction*: add precedences, borders, and checks if the staring factors are ok
+
+-spec reduction_star(string(), tuple()) -> string() | tuple().
+
 reduction_star(String, System) ->
     {system, _, Size} = System,
     Str = add_borders(insert_precs(String, System), Size),
