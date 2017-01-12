@@ -1,8 +1,11 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+%%! -pa 'ebin/'
+%%
 % Strictly Locally Reducible Languages 
 % basic examples
 % MPradella, MMXVI
 
--module(ex1).
 
 -import(locred,
         [ bordered_factors_of/2
@@ -12,6 +15,7 @@
           ,transitions/1
           ,automaton_states/1
           ,format_factors/1
+          ,ex_to_sys/2
         ]).
 
 %%%% Examples
@@ -25,7 +29,6 @@ anbn() ->
     check_system(San),
     reduction_star("aaaabbbb", San),
     show_automaton(transitions(automaton_states(San))).
-
 
 notOP() ->
     %% a^n b^n U c^n (ba)^n
@@ -70,18 +73,31 @@ l3() ->
     reduction_star("aaacbcbbbcbb", Sys),
     show_automaton(transitions(automaton_states(Sys))).
 
-l4() ->
-    P1 = bordered_factors_of("a[a.c.b[b]c.b]c[b]b",3),
+l4() -> % forse questo; L = a^n (c b+)^n
+    P1 = bordered_factors_of("a[a.c.b[b]c.b]c.b[b",3),
     P2 = sets:union(P1, bordered_factors_of("a[a.c.b]c.b",3)),
     P21 = sets:union(P2, bordered_factors_of("a[a.c.b[b]c.b",3)),
     P3 = sets:union(P21, bordered_factors_of("a.c.b",3)),
     P4 = sets:union(P3, bordered_factors_of("a.c.b",3)),
-    P5 = sets:union(P4, bordered_factors_of("a[a.c.b]c[b]b",3)),
+    P5 = sets:union(P4, bordered_factors_of("a[a.c.b]c.b[b",3)),
     Sys = {system, P5, 3},
     check_system(Sys),
     format_factors(P5),
-    %reduction_star("a[a[a.c.b[b[b]c.b]c.b[b", Sys),
     reduction_star("aaacbbbcbcbb", Sys),
+    show_automaton(transitions(automaton_states(Sys))).
+
+l4bis() -> % L = a^n (c b+)^n
+    P1 = bordered_factors_of("a[a.c.b.b]c.b]c.b.b",3),
+    P2 = sets:union(P1, bordered_factors_of("a[a.c.b]c.b",3)),
+    P21 = sets:union(P2, bordered_factors_of("a[a.c.b.b]c.b",3)),
+    P3 = sets:union(P21, bordered_factors_of("a.c.b",3)),
+    P4 = sets:union(P3, bordered_factors_of("a.c.b",3)),
+    P5 = sets:union(P4, bordered_factors_of("a[a.c.b]c.b.b",3)),
+    Sys = {system, P5, 3},
+    check_system(Sys),
+    format_factors(P5),
+    reduction_star("aaacbbbbcbcbbb", Sys),
+    reduction_star("aacbb", Sys),
     show_automaton(transitions(automaton_states(Sys))).
 
 l5() ->
@@ -108,11 +124,38 @@ hierarchy() ->
     reduction_star("aaabaaaaaaabaaab", Sys), % this should fail for k > 5
     show_automaton(transitions(automaton_states(Sys))).
 
+hierarchy2() ->
+    P1 = bordered_factors_of("a.a.b]a.a.b",5),
+    P2 = sets:union(P1, bordered_factors_of("a.a.b",5)),
+    Sys = {system, P2, 5},
+    check_system(Sys),
+    format_factors(P2),
+    reduction_star("aabaabaab", Sys),
+    reduction_star("aaabaabaaab", Sys), % this should fail 
+    show_automaton(transitions(automaton_states(Sys))).
+
+% new interface!
+dyck() ->
+    San = ex_to_sys([
+                     "a[a.A]A",
+                     "a.A",
+                     "a.A[a.A",
+                     "b[b.B]B",
+                     "b.B",
+                     "b.B[b.B",
+                     "a.A[b.B",
+                     "b.B[a.A",
+                     "b[a.A]B",
+                     "a[b.B]A"
+                    ], 3),
+    reduction_star("aabBAAaAbbBBbaaaAAAB", San),
+    reduction_star("aaAAaA", San),
+    show_automaton(transitions(automaton_states(San))).
+
+
 
 % used as a script:
 % escript locred.erl
 main(_V) -> 
-    hierarchy().
-
-
+    dyck().
 

@@ -18,6 +18,7 @@
          ,transitions/1
          ,show_automaton/1
          ,sigma/1
+         ,ex_to_sys/2
         ]).
 
 -export([format_factors/1]).
@@ -268,9 +269,19 @@ reduction_star(String, System) ->
         true  -> 
             io:format("----> ~s ~n", [Str]),
             reduction_star_h(Str, System);
-        false -> io:format("reduction: bad factors~n"), {no, Str}
+        false -> io:format("reduction: bad factors in " ++ Str ++ "~n"), {no, Str}
     end.
 
 
+% Build up a system from examples
+
+ex_to_sys(Inst, Size) -> 
+    S = sets:union(lists:map(fun (X) -> bordered_factors_of(X, Size) end, Inst)),
+    format_factors(S),
+    Sys = {system, S, Size},
+    check_system(Sys),
+    Sys.
+
+    
 
 
