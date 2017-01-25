@@ -32,12 +32,12 @@ anbn() ->
 
 notOP() ->
     %% a^n b^n U c^n (ba)^n
-    P1 = bordered_factors_of("a[a[a.b]b]b",5),
-    P2 = sets:union(P1, bordered_factors_of("a.b",5)),
-    P3 = sets:union(P2, bordered_factors_of("c[c[c.b.a]b.a]b.a",5)),
-    P4 = sets:union(P3, bordered_factors_of("c.b.a",5)),
-    Sys = {system, P4, 5},
-    check_system(Sys),
+    Sys = ex_to_sys([
+                     "a[a[a.b]b]b",
+                     "a.b",
+                     "c[c[c.b.a]b.a]b.a",
+                     "c.b.a"
+                    ], 5),
     reduction_star("ccccbabababa", Sys),
     reduction_star("aaabbb", Sys),
     show_automaton(transitions(automaton_states(Sys))).
@@ -134,6 +134,16 @@ hierarchy2() ->
     reduction_star("aaabaabaaab", Sys), % this should fail 
     show_automaton(transitions(automaton_states(Sys))).
 
+nonLT() ->
+    Sys = ex_to_sys([
+                     "a.a.a.a]b[a.a.a",
+                     "b"
+                    ],3),
+    reduction_star("aaaaaaaabaaaaaaaaa",Sys),
+    reduction_star("aaaaaabaaaaabaaaabaaa",Sys),
+    reduction_star("aaaaaaaaaaaaa",Sys),
+    show_automaton(transitions(automaton_states(Sys))).
+
 % new interface!
 dyck() ->
     San = ex_to_sys([
@@ -151,6 +161,98 @@ dyck() ->
     reduction_star("aabBAAaAbbBBbaaaAAAB", San),
     reduction_star("aaAAaA", San),
     show_automaton(transitions(automaton_states(San))).
+
+
+arit0() ->
+    Sys = ex_to_sys([
+                     "e]+[e]+[e]*[e]*[e]*[e]+[e]+[e",
+                     "e]*[e]*[e]*[e",
+                     "+]+[*]*]*]+]+",
+                     "e]*[e",
+                     "e]+[e",
+                     "e"
+                    ], 3),
+    reduction_star("e+e+e*e*e+e+e+e", Sys),
+    reduction_star("e++e**e+e++", Sys).
+
+arit1() ->
+    Sys = ex_to_sys([
+                     "e]+[e]+[e]*[e]*[e]*[e]+[e]+[e",
+                     "e]*[e]*[e]*[e",
+                     "+]+[*.*.*]+]+",
+                     "e]*[e",
+                     "e]+[e",
+                     "e"
+                    ], 3),
+    reduction_star("e+e+e*e*e*e*e+e+e+e", Sys),
+    reduction_star("e++e**e+e++", Sys),
+    show_automaton(transitions(automaton_states(Sys))).
+
+aritp0() ->
+    Sys = ex_to_sys([
+                     "e]+[e]+[e]*[e]*[e]*[e]+[e]+[e",
+                     "e]+[([e]+[e]*[e]*[e]*[e]+[e])]+[e",
+                     "e]+[([e]+[e]*[e]*[e]*[e]*[e])]+[e",
+                     "e]+[([e]*[e]*[e]*[e]*[e]+[e])]+[e",
+                     "e]*[e]*[e]*[e",
+                     "e]*[([e]*[e])]*[e",
+                     "(.)",
+                     "(.)[(.)",
+                     "([(.)])",
+                     "+[(.)]+",
+                     "*[(.)]*",
+                     "+]+[*.*.*]+]+",
+                     "+]+[([*.*.*])]+]+",
+                     "+]+[([+]+]+])]+]+",
+                     "+]+[*[([*])]*]+]+",
+                     "e]*[e",
+                     "e]+[e",
+                     "e"
+                    ], 3),
+    reduction_star("e+e+e*(e*e*e*e+e)+e+e", Sys),
+    reduction_star("(e+e)+e*e*e*e*(e+e+e+e)", Sys),
+    reduction_star("e++e**e+e++", Sys).
+
+if0() ->
+    Sys = ex_to_sys([
+                     "I.([e]+[e]+[e]*[e]*[e]*[e]+[e]+[e])[e]*[e]*[e]*[e",
+                     "I.([e]+[([e]+[e]*[e]*[e]*[e]+[e])]+[e])[e]+[e]+[e",
+                     "I.([e]+[([e]+[e]*[e]*[e]*[e]*[e])]+[e])[e",
+                     "I.([e]+[([e]*[e]*[e]*[e]*[e]+[e])]+[e])[e",
+                     "I.([e]*[e]*[e]*[e])[e]*[e",
+                     "I.([e]*[([e]*[e])]*[e])[([e])",
+                     "I.([(.)])[e",
+                     "I.([+[(.)]+])[e",
+                     "I.([*[(.)]*])[e",
+                     "I.([+]+[*.*.*]+]+])[e",
+                     "I.([+]+[([*.*.*])]+]+])[e",
+                     "I.([+]+[([+]+]+])]+]+])[e",
+                     "I.([+]+[*[([*])]*]+]+])[e",
+                     "I.([e]*[e])[e",
+                     "I.([e]+[e])[e",
+                     "I.([e])[e"
+                    ], 5),
+    reduction_star("I(e+e+e*(e*e*e*e+e)+e+e)e+e", Sys),
+    reduction_star("I((e+e)+e*e*e*e*(e+e+e+e))", Sys),
+    reduction_star("I(e++e**e+e++)", Sys).
+
+% a+ a^n b^n
+ex11() ->
+    Sys = ex_to_sys([
+                     "a[a[a.b]b",
+                     "a[a"
+                    ], 3),
+    reduction_star("aaaaaabbb", Sys),
+    show_automaton(transitions(automaton_states(Sys))).
+
+ex12() -> % a^n c b^n
+    Sys = ex_to_sys([
+                     "a[a[a[c]b]b]b",
+                     "a[a[a.b]b]b",
+                     "a[c]b",
+                     "a.b"], 5),
+    reduction_star("aaacbbb", Sys),
+    show_automaton(transitions(automaton_states(Sys))).
 
 
 

@@ -6,19 +6,19 @@
 -author('Matteo Pradella').
 -date(20161107).
 
--export([factors_of/2
-         ,bordered_factors_of/2
-         ,check_factors/2
-         ,check_string/1
-         ,reduction/2
-         ,reduction_star/2
-         ,add_borders/2
-         ,check_system/1
-         ,automaton_states/1
-         ,transitions/1
-         ,show_automaton/1
-         ,sigma/1
-         ,ex_to_sys/2
+-export([factors_of/2,
+         bordered_factors_of/2,
+         check_factors/2,
+         check_string/1,
+         reduction/2,
+         reduction_star/2,
+         add_borders/2,
+         check_system/1,
+         automaton_states/1,
+         transitions/1,
+         show_automaton/1,
+         sigma/1,
+         ex_to_sys/2
         ]).
 
 -export([format_factors/1]).
@@ -30,8 +30,8 @@
 
 %% this is used to check if a string contains the correct precedences
 check_string(String) ->
-    {Res, _} = lists:foldl(fun check_string_help/2, {true, odd}, String),
-    Res.
+    {Res, Pos} = lists:foldl(fun check_string_help/2, {true, even}, String),
+    Res andalso Pos =:= odd.
 
 check_string_help(Char,  {true, even}) -> {not(lists:member(Char, "[.]")), odd};
 check_string_help(Char,  {true, odd})  -> {lists:member(Char, "[.]"), even};
@@ -176,6 +176,7 @@ show_automaton(Transitions) ->
     {ok, F} = file:open("automa.dot", write),
     io:fwrite(F,"digraph finite_state_machine {~n",[]),
     io:fwrite(F,"rankdir = LR~n",[]),
+    % rankdir = LR; size="11,8!"; margin=0;
     sets:fold(fun(X,_) -> 
                       {From, To} = X,
                       L = string:len(From) div 2,
@@ -276,11 +277,21 @@ reduction_star(String, System) ->
 % Build up a system from examples
 
 ex_to_sys(Inst, Size) -> 
-    S = sets:union(lists:map(fun (X) -> bordered_factors_of(X, Size) end, Inst)),
-    format_factors(S),
-    Sys = {system, S, Size},
-    check_system(Sys),
-    Sys.
+    Check = lists:foldl(fun (X,R) -> 
+                                T = check_string(X),
+                                if not T -> io:format("Bad word ~s~n", [X]);
+                                   true -> ok
+                                end,
+                                R andalso T end, true, Inst),
+    if Check ->
+           S = sets:union(lists:map(fun (X) -> bordered_factors_of(X, Size) end, Inst)),
+           format_factors(S),
+           Sys = {system, S, Size},
+           check_system(Sys),
+           Sys;
+       true -> 
+           no
+    end.
 
     
 
